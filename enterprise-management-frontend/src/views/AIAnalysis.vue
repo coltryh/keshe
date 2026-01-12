@@ -116,7 +116,7 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { aiChat, analyzeTurnover, analyzeSalaryData, generateReport as generateReportAPI } from '@/api/ai'
+import { aiChat, analyzeTurnover, analyzeSalary as analyzeSalaryAPI, generateReport as generateReportAPI } from '@/api/ai'
 import { getAllEmployees } from '@/api/employee'
 
 const employees = ref([])
@@ -204,7 +204,7 @@ const analyzeSalary = async () => {
 
   analyzing.value = true
   try {
-    const res = await analyzeSalaryData(selectedDeptId.value)
+    const res = await analyzeSalaryAPI(selectedDeptId.value)
     analysisResult.value = res.data
     ElMessage.success('分析完成')
   } catch (error) {
