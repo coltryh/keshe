@@ -1,6 +1,5 @@
 package com.enterprise.aspect;
 
-import com.alibaba.fastjson2.JSON;
 import com.enterprise.dao.OperationLogMapper;
 import com.enterprise.entity.OperationLog;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -14,6 +13,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 
 /**
  * 日志记录切面（AOP 面向切面编程）
@@ -54,7 +54,7 @@ public class LogAspect {
 
         // 获取参数
         Object[] args = point.getArgs();
-        String params = JSON.toJSONString(args);
+        String params = Arrays.toString(args);
 
         // 执行方法
         Object result = point.proceed();
