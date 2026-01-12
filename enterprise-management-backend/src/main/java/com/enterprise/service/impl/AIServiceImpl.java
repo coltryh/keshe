@@ -1,12 +1,12 @@
 package com.enterprise.service.impl;
 
-import com.alibaba.fastjson2.JSON;
 import com.enterprise.dao.AttendanceMapper;
 import com.enterprise.dao.EmployeeMapper;
 import com.enterprise.dao.SalaryMapper;
 import com.enterprise.entity.Employee;
 import com.enterprise.entity.Salary;
 import com.enterprise.service.AIService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -44,9 +44,11 @@ public class AIServiceImpl implements AIService {
     private SalaryMapper salaryMapper;
 
     private final WebClient webClient;
+    private final ObjectMapper objectMapper;
 
     public AIServiceImpl() {
         this.webClient = WebClient.builder().build();
+        this.objectMapper = new ObjectMapper();
     }
 
     @Override
@@ -62,17 +64,18 @@ public class AIServiceImpl implements AIService {
             requestBody.put("messages", List.of(message));
 
             // 调用 AI API
+            String jsonBody = objectMapper.writeValueAsString(requestBody);
             String response = webClient.post()
                     .uri(apiUrl)
                     .header("Authorization", "Bearer " + apiKey)
                     .header("Content-Type", "application/json")
-                    .body(Mono.just(JSON.toJSONString(requestBody)), String.class)
+                    .body(Mono.just(jsonBody), String.class)
                     .retrieve()
                     .bodyToMono(String.class)
                     .block();
 
             // 解析响应
-            Map<String, Object> result = JSON.parseObject(response, Map.class);
+            Map<String, Object> result = objectMapper.readValue(response, Map.class);
             List<Map<String, Object>> choices = (List<Map<String, Object>>) result.get("choices");
             if (choices != null && !choices.isEmpty()) {
                 Map<String, Object> message1 = (Map<String, Object>) choices.get(0).get("message");
