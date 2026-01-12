@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.enterprise.dao.UserMapper">
+
+    <!-- 结果映射 -->
+    <resultMap id="UserResultMap" type="com.enterprise.entity.User">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="password" column="password"/>
+        <result property="email" column="email"/>
+        <result property="role" column="role"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <!-- 根据用户名查询 -->
+    <select id="findByUsername" resultMap="UserResultMap">
+        SELECT * FROM t_user WHERE username = #{username}
+    </select>
+
+    <!-- 根据 ID 查询 -->
+    <select id="findById" resultMap="UserResultMap">
+        SELECT * FROM t_user WHERE id = #{id}
+    </select>
+
+    <!-- 分页查询 -->
+    <select id="findByPage" resultMap="UserResultMap">
+        SELECT * FROM t_user
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND username LIKE CONCAT('%', #{keyword}, '%')
+                OR email LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+        <if test="sortBy != null and sortBy != ''">
+            ORDER BY ${sortBy} ${sortOrder}
+        </if>
+        LIMIT #{pageSize} OFFSET #{pageNum}
+    </select>
+
+    <!-- 查询总数 -->
+    <select id="countTotal" resultType="int">
+        SELECT COUNT(*) FROM t_user
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND username LIKE CONCAT('%', #{keyword}, '%')
+                OR email LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+    </select>
+
+    <!-- 插入用户 -->
+    <insert id="insert" parameterType="com.enterprise.entity.User" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_user (username, password, email, role, create_time, update_time)
+        VALUES (#{username}, #{password}, #{email}, #{role}, #{createTime}, #{updateTime})
+    </insert>
+
+    <!-- 更新用户 -->
+    <update id="update" parameterType="com.enterprise.entity.User">
+        UPDATE t_user
+        <set>
+            <if test="username != null">username = #{username},</if>
+            <if test="password != null">password = #{password},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="role != null">role = #{role},</if>
+            update_time = #{updateTime}
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除用户 -->
+    <delete id="deleteById">
+        DELETE FROM t_user WHERE id = #{id}
+    </delete>
+
+</mapper>

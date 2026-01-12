@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.enterprise.dao.LeaveApplicationMapper">
+
+    <resultMap id="LeaveApplicationResultMap" type="com.enterprise.entity.LeaveApplication">
+        <id property="id" column="id"/>
+        <result property="employeeId" column="employee_id"/>
+        <result property="employeeName" column="employee_name"/>
+        <result property="leaveType" column="leave_type"/>
+        <result property="startTime" column="start_time"/>
+        <result property="endTime" column="end_time"/>
+        <result property="days" column="days"/>
+        <result property="reason" column="reason"/>
+        <result property="status" column="status"/>
+        <result property="approver" column="approver"/>
+        <result property="approvalComment" column="approval_comment"/>
+        <result property="approvalTime" column="approval_time"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <select id="findById" resultMap="LeaveApplicationResultMap">
+        SELECT * FROM t_leave_application WHERE id = #{id}
+    </select>
+
+    <select id="findByPage" resultMap="LeaveApplicationResultMap">
+        SELECT * FROM t_leave_application
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND employee_name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+        ORDER BY create_time DESC
+        LIMIT #{pageSize} OFFSET #{pageNum}
+    </select>
+
+    <select id="countTotal" resultType="int">
+        SELECT COUNT(*) FROM t_leave_application
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND employee_name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+    </select>
+
+    <select id="findByEmployeeId" resultMap="LeaveApplicationResultMap">
+        SELECT * FROM t_leave_application
+        WHERE employee_id = #{employeeId}
+        ORDER BY create_time DESC
+    </select>
+
+    <insert id="insert" parameterType="com.enterprise.entity.LeaveApplication" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_leave_application (employee_id, employee_name, leave_type, start_time, end_time, days, reason, status, create_time)
+        VALUES (#{employeeId}, #{employeeName}, #{leaveType}, #{startTime}, #{endTime}, #{days}, #{reason}, #{status}, #{createTime})
+    </insert>
+
+    <update id="update" parameterType="com.enterprise.entity.LeaveApplication">
+        UPDATE t_leave_application
+        <set>
+            <if test="status != null">status = #{status},</if>
+            <if test="approver != null">approver = #{approver},</if>
+            <if test="approvalComment != null">approval_comment = #{approvalComment},</if>
+            <if test="approvalTime != null">approval_time = #{approvalTime},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM t_leave_application WHERE id = #{id}
+    </delete>
+
+</mapper>

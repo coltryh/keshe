@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.enterprise.dao.DepartmentMapper">
+
+    <resultMap id="DepartmentResultMap" type="com.enterprise.entity.Department">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="description" column="description"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <select id="findById" resultMap="DepartmentResultMap">
+        SELECT * FROM t_department WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="DepartmentResultMap">
+        SELECT * FROM t_department ORDER BY create_time DESC
+    </select>
+
+    <insert id="insert" parameterType="com.enterprise.entity.Department" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_department (name, parent_id, description, create_time, update_time)
+        VALUES (#{name}, #{parentId}, #{description}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update" parameterType="com.enterprise.entity.Department">
+        UPDATE t_department
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="parentId != null">parent_id = #{parentId},</if>
+            <if test="description != null">description = #{description},</if>
+            update_time = #{updateTime}
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM t_department WHERE id = #{id}
+    </delete>
+
+</mapper>

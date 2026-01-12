@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.enterprise.dao.AttendanceMapper">
+
+    <resultMap id="AttendanceResultMap" type="com.enterprise.entity.Attendance">
+        <id property="id" column="id"/>
+        <result property="employeeId" column="employee_id"/>
+        <result property="employeeName" column="employee_name"/>
+        <result property="date" column="date"/>
+        <result property="checkinTime" column="checkin_time"/>
+        <result property="checkoutTime" column="checkout_time"/>
+        <result property="status" column="status"/>
+        <result property="workHours" column="work_hours"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <select id="findById" resultMap="AttendanceResultMap">
+        SELECT * FROM t_attendance WHERE id = #{id}
+    </select>
+
+    <select id="findByPage" resultMap="AttendanceResultMap">
+        SELECT * FROM t_attendance
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND employee_name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+        ORDER BY date DESC, create_time DESC
+        LIMIT #{pageSize} OFFSET #{pageNum}
+    </select>
+
+    <select id="countTotal" resultType="int">
+        SELECT COUNT(*) FROM t_attendance
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND employee_name LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+    </select>
+
+    <select id="findByEmployeeAndDate" resultMap="AttendanceResultMap">
+        SELECT * FROM t_attendance
+        WHERE employee_id = #{employeeId} AND date = #{date}
+    </select>
+
+    <insert id="insert" parameterType="com.enterprise.entity.Attendance" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_attendance (employee_id, employee_name, date, checkin_time, checkout_time, status, work_hours, create_time)
+        VALUES (#{employeeId}, #{employeeName}, #{date}, #{checkinTime}, #{checkoutTime}, #{status}, #{workHours}, #{createTime})
+    </insert>
+
+    <update id="update" parameterType="com.enterprise.entity.Attendance">
+        UPDATE t_attendance
+        <set>
+            <if test="checkinTime != null">checkin_time = #{checkinTime},</if>
+            <if test="checkoutTime != null">checkout_time = #{checkoutTime},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="workHours != null">work_hours = #{workHours},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM t_attendance WHERE id = #{id}
+    </delete>
+
+    <select id="getStatistics" resultType="java.util.Map">
+        SELECT
+            COUNT(*) as totalDays,
+            SUM(CASE WHEN status = 'LATE' THEN 1 ELSE 0 END) as lateCount,
+            SUM(CASE WHEN status = 'EARLY_LEAVE' THEN 1 ELSE 0 END) as earlyCount,
+            SUM(CASE WHEN status = 'ABSENCE' THEN 1 ELSE 0 END) as absenceCount,
+            SUM(CASE WHEN status = 'NORMAL' THEN 1 ELSE 0 END) as normalCount
+        FROM t_attendance
+        WHERE employee_id = #{employeeId}
+        AND date LIKE CONCAT(#{month}, '%')
+    </select>
+
+</mapper>

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.enterprise.dao.EmployeeMapper">
+
+    <resultMap id="EmployeeResultMap" type="com.enterprise.entity.Employee">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="gender" column="gender"/>
+        <result property="age" column="age"/>
+        <result property="departmentId" column="department_id"/>
+        <result property="departmentName" column="department_name"/>
+        <result property="position" column="position"/>
+        <result property="phone" column="phone"/>
+        <result property="email" column="email"/>
+        <result property="hireDate" column="hire_date"/>
+        <result property="status" column="status"/>
+        <result property="salary" column="salary"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <select id="findById" resultMap="EmployeeResultMap">
+        SELECT e.*, d.name as department_name
+        FROM t_employee e
+        LEFT JOIN t_department d ON e.department_id = d.id
+        WHERE e.id = #{id}
+    </select>
+
+    <select id="findByPage" resultMap="EmployeeResultMap">
+        SELECT e.*, d.name as department_name
+        FROM t_employee e
+        LEFT JOIN t_department d ON e.department_id = d.id
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND e.name LIKE CONCAT('%', #{keyword}, '%')
+                OR e.phone LIKE CONCAT('%', #{keyword}, '%')
+                OR e.email LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+        ORDER BY e.create_time DESC
+        LIMIT #{pageSize} OFFSET #{pageNum}
+    </select>
+
+    <select id="countTotal" resultType="int">
+        SELECT COUNT(*) FROM t_employee
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND name LIKE CONCAT('%', #{keyword}, '%')
+                OR phone LIKE CONCAT('%', #{keyword}, '%')
+                OR email LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+    </select>
+
+    <select id="findAll" resultMap="EmployeeResultMap">
+        SELECT e.*, d.name as department_name
+        FROM t_employee e
+        LEFT JOIN t_department d ON e.department_id = d.id
+        WHERE e.status = 'ACTIVE'
+        ORDER BY e.create_time DESC
+    </select>
+
+    <insert id="insert" parameterType="com.enterprise.entity.Employee" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_employee (name, gender, age, department_id, position, phone, email, hire_date, status, salary, create_time, update_time)
+        VALUES (#{name}, #{gender}, #{age}, #{departmentId}, #{position}, #{phone}, #{email}, #{hireDate}, #{status}, #{salary}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="update" parameterType="com.enterprise.entity.Employee">
+        UPDATE t_employee
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="gender != null">gender = #{gender},</if>
+            <if test="age != null">age = #{age},</if>
+            <if test="departmentId != null">department_id = #{departmentId},</if>
+            <if test="position != null">position = #{position},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="salary != null">salary = #{salary},</if>
+            update_time = #{updateTime}
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM t_employee WHERE id = #{id}
+    </delete>
+
+    <select id="findByDepartmentId" resultMap="EmployeeResultMap">
+        SELECT * FROM t_employee WHERE department_id = #{departmentId} AND status = 'ACTIVE'
+    </select>
+
+</mapper>
