@@ -52,7 +52,7 @@
                   :value="emp.id"
                 />
               </el-select>
-              <el-button type="primary" @click="analyzeTurnover" :loading="analyzing">
+              <el-button type="primary" @click="analyzeTurnoverFunc" :loading="analyzing">
                 分析
               </el-button>
             </el-form-item>
@@ -116,7 +116,7 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { aiChat, analyzeTurnover, analyzeSalaryData, generateReport } from '@/api/ai'
+import { aiChat, analyzeTurnover, analyzeSalaryData, generateReport as generateReportAPI } from '@/api/ai'
 import { getAllEmployees } from '@/api/employee'
 
 const employees = ref([])
@@ -217,7 +217,7 @@ const analyzeSalary = async () => {
 const generateReport = async (type) => {
   analyzing.value = true
   try {
-    const res = await generateReport(type)
+    const res = await generateReportAPI(type)
     analysisResult.value = res.data
     ElMessage.success('报表生成成功')
   } catch (error) {
