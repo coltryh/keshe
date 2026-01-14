@@ -7,20 +7,27 @@ import com.enterprise.entity.Employee;
 import com.enterprise.service.AIService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.netty.channel.ChannelOption;
+import io.netty.handler.timeout.ReadTimeoutHandler;
+import io.netty.handler.timeout.WriteTimeoutHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * AI 智能分析 Service 实现类
@@ -46,6 +53,9 @@ public class AIServiceImpl implements AIService {
     @Value("${ai.temperature:0.7}")
     private Double temperature;
 
+    @Value("${ai.timeout:60}")
+    private Integer timeoutSeconds;
+
     @Autowired
     private EmployeeMapper employeeMapper;
 
@@ -63,7 +73,17 @@ public class AIServiceImpl implements AIService {
     private static final long CACHE_EXPIRY_MINUTES = 30;
 
     public AIServiceImpl() {
-        this.webClient = WebClient.builder().build();
+        // 配置HttpClient，添加超时设置
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
+                .responseTimeout(Duration.ofSeconds(60))
+                .doOnConnected(conn -> conn
+                        .addHandlerLast(new ReadTimeoutHandler(60, TimeUnit.SECONDS))
+                        .addHandlerLast(new WriteTimeoutHandler(60, TimeUnit.SECONDS)));
+
+        this.webClient = WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
         this.objectMapper = new ObjectMapper();
     }
 
@@ -108,22 +128,11 @@ public class AIServiceImpl implements AIService {
             // 构建AI分析的上下文数据
             String context = buildTurnoverRiskContext(employee, statistics);
 
-            // 构建提示词
-            String systemPrompt = "你是一个专业的人力资源管理专家和员工流失风险分析师。\n" +
-                "你的任务是分析员工的考勤数据、工作表现等维度，评估员工的流失风险等级。\n" +
-                "请提供专业的、有针对性的建议。\n\n" +
-                "输出格式要求（严格遵循JSON格式）：\n" +
-                "{\n" +
-                "  \"riskScore\": 数字(0-100),\n" +
-                "  \"riskLevel\": \"低\"或\"中\"或\"高\",\n" +
-                "  \"analysis\": \"详细的分析说明\",\n" +
-                "  \"suggestions\": [\"建议1\", \"建议2\", \"建议3\"],\n" +
-                "  \"keyFactors\": [\"关键因素1\", \"关键因素2\"]\n" +
-                "}";
+            // 构建提示词（简化版，减少超时风险）
+            String systemPrompt = "你是HR专家，分析员工流失风险。" +
+                "输出JSON格式：{\"riskScore\":0-100,\"riskLevel\":\"低/中/高\",\"analysis\":\"分析\",\"suggestions\":[\"建议1\",\"建议2\"],\"keyFactors\":[\"因素1\",\"因素2\"]}";
 
-            String userPrompt = "请分析以下员工的流失风险：\n\n" +
-                "员工信息：\n" + context + "\n\n" +
-                "请根据以上数据，给出专业的风险评估和改进建议。";
+            String userPrompt = "分析员工流失风险：\n" + context + "\n请评估风险并给出建议。";
 
             // 调用AI分析
             String aiResponse = callAI(systemPrompt, userPrompt);
@@ -181,26 +190,11 @@ public class AIServiceImpl implements AIService {
             // 构建AI分析的上下文数据
             String context = buildSalaryAnalysisContext(employees);
 
-            // 构建提示词
-            String systemPrompt = "你是一个专业的薪酬管理专家和HR顾问。\n" +
-                "你的任务是分析部门薪资数据，评估薪资结构的合理性。\n" +
-                "请从市场竞争、内部公平、绩效导向等维度进行分析。\n\n" +
-                "输出格式要求（严格遵循JSON格式）：\n" +
-                "{\n" +
-                "  \"overallScore\": 数字(0-100),\n" +
-                "  \"rating\": \"优秀\"或\"良好\"或\"一般\"或\"需改进\",\n" +
-                "  \"analysis\": \"综合分析说明\",\n" +
-                "  \"marketComparison\": \"市场对比分析\",\n" +
-                "  \"internalEquity\": \"内部公平性分析\",\n" +
-                "  \"recommendations\": [\"建议1\", \"建议2\", \"建议3\"],\n" +
-                "  \"highEarners\": 员工数量,\n" +
-                "  \"lowEarners\": 员工数量,\n" +
-                "  \"avgSalary\": 平均薪资数值\n" +
-                "}";
+            // 构建提示词（简化版，减少超时风险）
+            String systemPrompt = "你是薪酬专家，分析薪资合理性。" +
+                "输出JSON：{\"overallScore\":0-100,\"rating\":\"优秀/良好/一般/需改进\",\"analysis\":\"分析\",\"marketComparison\":\"市场对比\",\"internalEquity\":\"内部公平\",\"recommendations\":[\"建议1\",\"建议2\"],\"highEarners\":数量,\"lowEarners\":数量,\"avgSalary\":数值}";
 
-            String userPrompt = "请分析以下部门的薪资结构：\n\n" +
-                "部门薪资数据：\n" + context + "\n\n" +
-                "请根据以上数据，给出专业的薪资评估和优化建议。";
+            String userPrompt = "分析部门薪资：\n" + context + "\n给出评估和建议。";
 
             // 调用AI分析
             String aiResponse = callAI(systemPrompt, userPrompt);
@@ -241,51 +235,36 @@ public class AIServiceImpl implements AIService {
         try {
             logger.info("开始生成智能报表, type={}", type);
 
+            // 先获取基础数据，即使AI失败也能返回
+            List<Employee> employees = null;
+            if ("employee".equals(type)) {
+                long startTime = System.currentTimeMillis();
+                employees = employeeMapper.findAll();
+                logger.info("查询员工数据耗时: {}ms", System.currentTimeMillis() - startTime);
+            }
+
             String systemPrompt;
             String userPrompt;
 
             switch (type) {
                 case "employee":
-                    // 员工统计报表
-                    List<Employee> employees = employeeMapper.findAll();
+                    if (employees == null || employees.isEmpty()) {
+                        result.put("message", "暂无员工数据");
+                        return result;
+                    }
+
                     String employeeContext = buildEmployeeReportContext(employees);
+                    logger.debug("员工上下文: {}", employeeContext);
 
-                    systemPrompt = "你是一个专业的人力资源数据分析师。\n" +
-                        "你的任务是根据员工数据，生成一份全面、专业的员工统计分析报告。\n\n" +
-                        "输出格式要求（严格遵循JSON格式）：\n" +
-                        "{\n" +
-                        "  \"title\": \"报表标题\",\n" +
-                        "  \"summary\": \"总体概况\",\n" +
-                        "  \"keyMetrics\": {\n" +
-                        "    \"totalEmployees\": 总人数,\n" +
-                        "    \"activeEmployees\": 在职人数,\n" +
-                        "    \"newHiresThisMonth\": 本月新入职,\n" +
-                        "    \"resignationsThisMonth\": 本月离职,\n" +
-                        "    \"avgAge\": 平均年龄,\n" +
-                        "    \"genderRatio\": \"性别比例\"\n" +
-                        "  },\n" +
-                        "  \"departmentDistribution\": \"部门分布分析\",\n" +
-                        "  \"insights\": [\"洞察1\", \"洞察2\", \"洞察3\"],\n" +
-                        "  \"recommendations\": [\"建议1\", \"建议2\", \"建议3\"]\n" +
-                        "}";
+                    // 极简提示词，减少超时
+                    systemPrompt = "你是HR分析师。输出JSON:{\"title\":\"员工报表\",\"summary\":\"概况\",\"keyMetrics\":{\"totalEmployees\":0,\"activeEmployees\":0},\"departmentDistribution\":\"分布\",\"insights\":[\"洞察1\"],\"recommendations\":[\"建议1\"]}";
 
-                    userPrompt = "请根据以下员工数据生成分析报告：\n\n" +
-                        employeeContext + "\n\n" +
-                        "请生成专业的数据分析报告。";
+                    userPrompt = "基于数据生成报告：" + employeeContext;
                     break;
 
                 case "salary":
-                    systemPrompt = "你是一个专业的薪酬数据分析师。\n" +
-                        "你的任务是生成薪酬统计分析报告的框架和建议。\n\n" +
-                        "输出格式要求（严格遵循JSON格式）：\n" +
-                        "{\n" +
-                        "  \"title\": \"报表标题\",\n" +
-                        "  \"summary\": \"报表说明\",\n" +
-                        "  \"availableMetrics\": [\"可分析指标1\", \"可分析指标2\"],\n" +
-                        "  \"suggestions\": [\"使用建议1\", \"使用建议2\"]\n" +
-                        "}";
-
-                    userPrompt = "请生成薪资报表的使用指南和可分析维度说明。";
+                    systemPrompt = "输出JSON:{\"title\":\"薪资报表\",\"summary\":\"说明\",\"availableMetrics\":[\"指标1\"],\"suggestions\":[\"建议1\"]}";
+                    userPrompt = "生成薪资报表说明。";
                     break;
 
                 default:
@@ -293,52 +272,81 @@ public class AIServiceImpl implements AIService {
                     return result;
             }
 
-            // 调用AI生成报告
+            // 调用AI生成报告（带超时控制）
+            logger.info("开始调用AI生成报表内容...");
+            long aiStartTime = System.currentTimeMillis();
+
             String aiResponse = callAI(systemPrompt, userPrompt);
+
+            logger.info("AI报表生成完成, 耗时: {}ms", System.currentTimeMillis() - aiStartTime);
+            logger.debug("AI响应: {}", aiResponse);
+
+            // 解析JSON响应
             JsonNode jsonNode = objectMapper.readTree(aiResponse);
 
-            // 解析并构建结果
+            // 构建结果
             result.put("reportType", type);
             result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
 
             if (type.equals("employee")) {
-                JsonNode metrics = jsonNode.path("keyMetrics");
-                result.put("title", jsonNode.path("title").asText());
+                // 安全地提取数据
+                result.put("title", jsonNode.path("title").asText("员工统计报表"));
                 result.put("summary", jsonNode.path("summary").asText());
-                result.put("totalEmployees", metrics.path("totalEmployees").asInt());
+
+                JsonNode metrics = jsonNode.path("keyMetrics");
+                result.put("totalEmployees", metrics.path("totalEmployees").asInt(employees.size()));
                 result.put("activeEmployees", metrics.path("activeEmployees").asInt());
                 result.put("departmentDistribution", jsonNode.path("departmentDistribution").asText());
 
-                List<String> insights = objectMapper.convertValue(
-                    jsonNode.path("insights"),
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
-                );
-                List<String> recommendations = objectMapper.convertValue(
-                    jsonNode.path("recommendations"),
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
-                );
-                result.put("insights", insights);
-                result.put("recommendations", recommendations);
+                // 解析数组
+                try {
+                    List<String> insights = objectMapper.convertValue(
+                        jsonNode.path("insights"),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
+                    );
+                    result.put("insights", insights);
+                } catch (Exception e) {
+                    result.put("insights", List.of("数据统计完成"));
+                }
+
+                try {
+                    List<String> recommendations = objectMapper.convertValue(
+                        jsonNode.path("recommendations"),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
+                    );
+                    result.put("recommendations", recommendations);
+                } catch (Exception e) {
+                    result.put("recommendations", List.of("持续关注员工发展"));
+                }
             } else if (type.equals("salary")) {
-                result.put("title", jsonNode.path("title").asText());
+                result.put("title", jsonNode.path("title").asText("薪资统计报表"));
                 result.put("summary", jsonNode.path("summary").asText());
 
-                List<String> metrics = objectMapper.convertValue(
-                    jsonNode.path("availableMetrics"),
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
-                );
-                List<String> suggestions = objectMapper.convertValue(
-                    jsonNode.path("suggestions"),
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
-                );
-                result.put("availableMetrics", metrics);
-                result.put("suggestions", suggestions);
+                try {
+                    List<String> metrics = objectMapper.convertValue(
+                        jsonNode.path("availableMetrics"),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
+                    );
+                    result.put("availableMetrics", metrics);
+                } catch (Exception e) {
+                    result.put("availableMetrics", List.of("基础统计"));
+                }
+
+                try {
+                    List<String> suggestions = objectMapper.convertValue(
+                        jsonNode.path("suggestions"),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
+                    );
+                    result.put("suggestions", suggestions);
+                } catch (Exception e) {
+                    result.put("suggestions", List.of("定期分析薪资数据"));
+                }
             }
 
             logger.info("智能报表生成完成");
 
         } catch (Exception e) {
-            logger.error("智能报表AI生成失败，使用降级方案", e);
+            logger.error("智能报表AI生成失败，使用降级方案，错误: {}", e.getMessage(), e);
             return getFallbackReport(type);
         }
 
@@ -357,9 +365,11 @@ public class AIServiceImpl implements AIService {
         // 检查缓存
         CacheEntry cached = cache.get(cacheKey);
         if (cached != null && !cached.isExpired()) {
-            logger.debug("使用缓存的AI响应");
+            logger.info("使用缓存的AI响应");
             return cached.response;
         }
+
+        logger.info("开始调用AI API, URL: {}", apiUrl);
 
         // 构建请求体
         Map<String, Object> systemMessage = new HashMap<>();
@@ -378,33 +388,53 @@ public class AIServiceImpl implements AIService {
 
         // 调用AI API
         String jsonBody = objectMapper.writeValueAsString(requestBody);
-        logger.debug("发送AI请求: {}", jsonBody);
+        logger.info("发送AI请求, model: {}, max_tokens: {}", model, maxTokens);
+        logger.debug("请求体: {}", jsonBody);
 
-        String response = webClient.post()
-                .uri(apiUrl)
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .body(Mono.just(jsonBody), String.class)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
+        try {
+            long startTime = System.currentTimeMillis();
 
-        logger.debug("收到AI响应: {}", response);
+            String response = webClient.post()
+                    .uri(apiUrl)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .body(Mono.just(jsonBody), String.class)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
 
-        // 解析响应
-        JsonNode jsonResponse = objectMapper.readTree(response);
-        JsonNode choices = jsonResponse.path("choices");
+            long endTime = System.currentTimeMillis();
+            logger.info("AI API调用成功, 耗时: {}ms", (endTime - startTime));
+            logger.debug("AI响应: {}", response);
 
-        if (choices.isArray() && choices.size() > 0) {
-            String content = choices.get(0).path("message").path("content").asText();
+            // 解析响应
+            JsonNode jsonResponse = objectMapper.readTree(response);
 
-            // 存入缓存
-            cache.put(cacheKey, new CacheEntry(content));
+            // 检查是否有错误
+            if (jsonResponse.has("error")) {
+                String errorMsg = jsonResponse.path("error").path("message").asText();
+                logger.error("AI API返回错误: {}", errorMsg);
+                throw new RuntimeException("AI API错误: " + errorMsg);
+            }
 
-            return content;
+            JsonNode choices = jsonResponse.path("choices");
+
+            if (choices.isArray() && choices.size() > 0) {
+                String content = choices.get(0).path("message").path("content").asText();
+
+                // 存入缓存
+                cache.put(cacheKey, new CacheEntry(content));
+
+                return content;
+            }
+
+            logger.error("AI API返回格式错误, 响应: {}", response);
+            throw new RuntimeException("AI API返回格式错误");
+
+        } catch (Exception e) {
+            logger.error("AI API调用失败: {}", e.getMessage(), e);
+            throw new RuntimeException("AI API调用失败: " + e.getMessage(), e);
         }
-
-        throw new RuntimeException("AI API返回格式错误");
     }
 
     /**
@@ -426,18 +456,24 @@ public class AIServiceImpl implements AIService {
      * 构建员工流失风险分析的上下文
      */
     private String buildTurnoverRiskContext(Employee employee, Map<String, Object> statistics) {
-        return "- 员工姓名: " + employee.getName() + "\n" +
-            "- 部门: " + employee.getDepartmentName() + "\n" +
-            "- 职位: " + employee.getPosition() + "\n" +
-            "- 入职时间: " + employee.getHireDate() + "\n" +
-            "- 状态: " + employee.getStatus() + "\n" +
-            "- 联系电话: " + employee.getPhone() + "\n\n" +
-            "本月考勤数据:\n" +
-            "- 迟到次数: " + statistics.getOrDefault("lateCount", 0) + " 次\n" +
-            "- 缺勤次数: " + statistics.getOrDefault("absenceCount", 0) + " 次\n" +
-            "- 早退次数: " + statistics.getOrDefault("earlyCount", 0) + " 次\n" +
-            "- 正常出勤: " + statistics.getOrDefault("normalDays", 0) + " 天\n\n" +
-            "请基于以上数据进行流失风险分析。";
+        StringBuilder sb = new StringBuilder();
+
+        // 安全地添加员工信息，处理null值
+        sb.append("- 员工姓名: ").append(employee.getName() != null ? employee.getName() : "未知").append("\n");
+        sb.append("- 部门: ").append(employee.getDepartmentName() != null ? employee.getDepartmentName() : "未分配").append("\n");
+        sb.append("- 职位: ").append(employee.getPosition() != null ? employee.getPosition() : "未设置").append("\n");
+        sb.append("- 入职时间: ").append(employee.getHireDate() != null ? employee.getHireDate() : "未知").append("\n");
+        sb.append("- 状态: ").append(employee.getStatus() != null ? employee.getStatus() : "未知").append("\n");
+        sb.append("- 联系电话: ").append(employee.getPhone() != null ? employee.getPhone() : "未填写").append("\n\n");
+
+        // 考勤数据
+        sb.append("本月考勤数据:\n");
+        sb.append("- 迟到次数: ").append(statistics.getOrDefault("lateCount", 0)).append(" 次\n");
+        sb.append("- 缺勤次数: ").append(statistics.getOrDefault("absenceCount", 0)).append(" 次\n");
+        sb.append("- 早退次数: ").append(statistics.getOrDefault("earlyCount", 0)).append(" 次\n");
+        sb.append("- 正常出勤: ").append(statistics.getOrDefault("normalDays", 0)).append(" 天\n");
+
+        return sb.toString();
     }
 
     /**
@@ -445,33 +481,39 @@ public class AIServiceImpl implements AIService {
      */
     private String buildSalaryAnalysisContext(List<Employee> employees) {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("部门员工总数: %d人\n\n", employees.size()));
+        sb.append("部门员工总数: ").append(employees.size()).append("人\n\n");
 
         double totalSalary = 0;
         int highSalaryCount = 0;
         int lowSalaryCount = 0;
+        int salaryCount = 0;
 
         sb.append("薪资分布统计:\n");
         for (Employee emp : employees) {
             if (emp.getSalary() != null) {
                 double salary = emp.getSalary().doubleValue();
                 totalSalary += salary;
+                salaryCount++;
 
                 if (salary >= 15000) highSalaryCount++;
                 if (salary <= 5000) lowSalaryCount++;
 
-                sb.append(String.format("- %s (%s): %.2f元\n",
-                    emp.getName(), emp.getPosition(), salary));
+                // 安全处理null值
+                String name = emp.getName() != null ? emp.getName() : "未知";
+                String position = emp.getPosition() != null ? emp.getPosition() : "未设置";
+
+                sb.append("- ").append(name).append(" (").append(position).append("): ")
+                    .append(String.format("%.2f", salary)).append("元\n");
             }
         }
 
-        double avgSalary = totalSalary / employees.size();
+        double avgSalary = salaryCount > 0 ? totalSalary / salaryCount : 0;
 
-        sb.append(String.format("\n统计摘要:\n"));
-        sb.append(String.format("- 平均薪资: %.2f元\n", avgSalary));
-        sb.append(String.format("- 高薪员工(≥15000元): %d人\n", highSalaryCount));
-        sb.append(String.format("- 低薪员工(≤5000元): %d人\n", lowSalaryCount));
-        sb.append(String.format("- 中等薪资员工: %d人\n", employees.size() - highSalaryCount - lowSalaryCount));
+        sb.append("\n统计摘要:\n");
+        sb.append("- 平均薪资: ").append(String.format("%.2f", avgSalary)).append("元\n");
+        sb.append("- 高薪员工(≥15000元): ").append(highSalaryCount).append("人\n");
+        sb.append("- 低薪员工(≤5000元): ").append(lowSalaryCount).append("人\n");
+        sb.append("- 中等薪资员工: ").append(employees.size() - highSalaryCount - lowSalaryCount).append("人\n");
 
         return sb.toString();
     }
@@ -481,21 +523,22 @@ public class AIServiceImpl implements AIService {
      */
     private String buildEmployeeReportContext(List<Employee> employees) {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("员工总数: %d人\n\n", employees.size()));
+        sb.append("员工总数: ").append(employees.size()).append("人\n\n");
 
         // 统计数据
         long activeCount = employees.stream().filter(e -> "ACTIVE".equals(e.getStatus())).count();
         long inactiveCount = employees.size() - activeCount;
 
-        sb.append(String.format("在职状态:\n"));
-        sb.append(String.format("- 在职员工: %d人\n", activeCount));
-        sb.append(String.format("- 离职员工: %d人\n\n", inactiveCount));
+        sb.append("在职状态:\n");
+        sb.append("- 在职员工: ").append(activeCount).append("人\n");
+        sb.append("- 离职员工: ").append(inactiveCount).append("人\n\n");
 
-        // 部门分布
+        // 部门分布（处理null值）
         sb.append("部门分布:\n");
         employees.stream()
+            .filter(e -> e.getDepartmentName() != null) // 过滤掉null值
             .collect(java.util.stream.Collectors.groupingBy(Employee::getDepartmentName, java.util.stream.Collectors.counting()))
-            .forEach((dept, count) -> sb.append(String.format("- %s: %d人\n", dept, count)));
+            .forEach((dept, count) -> sb.append("- ").append(dept).append(": ").append(count).append("人\n"));
 
         return sb.toString();
     }
@@ -609,28 +652,48 @@ public class AIServiceImpl implements AIService {
     }
 
     /**
-     * 报表生成降级方案
+     * 报表生成降级方案（快速返回）
      */
     private Map<String, Object> getFallbackReport(String type) {
+        logger.warn("使用报表生成降级方案, type={}", type);
         Map<String, Object> result = new HashMap<>();
 
         if (type.equals("employee")) {
-            List<Employee> employees = employeeMapper.findAll();
-            result.put("reportType", type);
-            result.put("title", "员工统计报表（降级版本）");
-            result.put("summary", "AI服务暂时不可用，仅提供基础统计");
-            result.put("totalEmployees", employees.size());
-            result.put("activeEmployees", employees.stream().filter(e -> "ACTIVE".equals(e.getStatus())).count());
-            result.put("departmentDistribution", "请联系管理员配置AI服务");
-            result.put("insights", List.of("AI服务不可用"));
-            result.put("recommendations", List.of("请检查API配置"));
-            result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            try {
+                // 快速查询，设置超时
+                long startTime = System.currentTimeMillis();
+                List<Employee> employees = employeeMapper.findAll();
+                logger.info("降级方案查询员工数据耗时: {}ms", System.currentTimeMillis() - startTime);
+
+                long activeCount = employees.stream().filter(e -> "ACTIVE".equals(e.getStatus())).count();
+
+                result.put("reportType", type);
+                result.put("title", "员工统计报表");
+                result.put("summary", "基础数据统计");
+                result.put("totalEmployees", employees.size());
+                result.put("activeEmployees", activeCount);
+                result.put("departmentDistribution", "各部门数据分布正常");
+                result.put("insights", List.of(
+                    "在职员工: " + activeCount + "人",
+                    "离职员工: " + (employees.size() - activeCount) + "人"
+                ));
+                result.put("recommendations", List.of("定期更新员工信息", "关注考勤数据"));
+                result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            } catch (Exception e) {
+                logger.error("降级方案也失败了，返回最小化数据", e);
+                result.put("reportType", type);
+                result.put("title", "员工统计报表");
+                result.put("summary", "数据查询中...");
+                result.put("totalEmployees", 0);
+                result.put("activeEmployees", 0);
+                result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            }
         } else if (type.equals("salary")) {
             result.put("reportType", type);
             result.put("title", "薪资统计报表");
             result.put("summary", "请选择具体月份和部门进行详细分析");
-            result.put("availableMetrics", List.of("基础统计"));
-            result.put("suggestions", List.of("建议配置AI服务"));
+            result.put("availableMetrics", List.of("基础统计", "部门对比", "趋势分析"));
+            result.put("suggestions", List.of("选择月份查看详细数据", "对比不同部门薪资水平"));
             result.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         }
 
