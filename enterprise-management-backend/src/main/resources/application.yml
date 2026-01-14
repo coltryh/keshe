@@ -8,9 +8,10 @@ spring:
   # 数据源配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://mysql:3306/student8_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    # 本地MySQL数据库配置
+    url: jdbc:mysql://localhost:3306/student8_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
-    password: root2026
+    password: 123456
 
   # Jackson 配置
   jackson:
@@ -32,9 +33,11 @@ jwt:
 
 # AI 配置
 ai:
-  api-key: your-ai-api-key-here
+  api-key: 8122ebf4b33649c69997828b67bd7cb7.jKGnxhwa0X3JMcd2
   api-url: https://open.bigmodel.cn/api/paas/v4/chat/completions
   model: glm-4-flash
+  max-tokens: 2000
+  temperature: 0.7
 
 # 日志配置
 logging:
