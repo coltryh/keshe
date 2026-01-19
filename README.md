@@ -246,3 +246,76 @@ ai:
 **项目创建时间：2025-01-12**
 **开发周期：约 2 周**
 **适用水平：课程设计、本科毕业设计**
+export const config = {
+  runtime: 'edge',
+};
+
+export default async function handler(request) {
+  // 1. 如果是 GET 请求，返回存活状态
+  if (request.method === 'GET') return new Response('Proxy Active');
+
+  try {
+    // 2. 这里的 Key 填你自己的！
+    const API_KEY = "Bearer 1efd5a531e264686a78cb9af688a4916.zJegTzxa61V0EsIe";
+
+    // 3. 拿到请求体
+    const body = await request.json();
+
+    // 4. 帮你是转发给智谱
+    const zhipuResponse = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': API_KEY
+      },
+      body: JSON.stringify(body)
+    });
+
+    // 5. 把结果返回给你
+    const data = await zhipuResponse.json();
+    return new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+  }
+}
+
+
+
+// final_test.js
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'; // 忽略证书错误
+
+async function run() {
+  // 👇 关键：地址直接写你的 Vercel 函数入口，不加长路径
+  const url = "https://api.ryhcolt.online/api"; 
+  
+  console.log(`🚀 正在连接: ${url}`);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "curl/7.68.0" // 伪装
+      },
+      body: JSON.stringify({
+        model: "glm-4",
+        messages: [{ role: "user", content: "你好，今天的日期是？" }]
+      })
+    });
+
+    if (!response.ok) {
+       throw new Error(`状态码: ${response.status} - ${await response.text()}`);
+    }
+
+    const data = await response.json();
+    console.log("✅ 成功回复:", data.choices[0].message.content);
+
+  } catch (e) {
+    console.error("❌ 失败:", e.message);
+  }
+}
+
+run();
